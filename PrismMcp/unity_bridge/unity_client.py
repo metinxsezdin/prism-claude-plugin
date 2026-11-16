@@ -1,0 +1,87 @@
+"""Prism → Unity calls over the loopback bridge."""
+
+import socket
+import time
+
+from . import protocol
+from .endpoint import read_unity_endpoint
+from .protocol import BridgeError
+
+HOST = "127.0.0.1"
+
+
+class UnityClient(object):
+    def __init__(self, port, token, timeout=10.0, project=None, reload_wait=20.0):
+        self.port = int(port)
+        self.token = token
+        self.timeout = timeout
+        self.project = project  # Unity project root: follow its session.json when set
+        self.reload_wait = reload_wait  # Unity's server is down while it compiles scripts
+
+    def _refresh_endpoint(self):
+        if self.project:
+            current = read_unity_endpoint(self.project)
+            if current:
+                self.port, self.token = current
+
+    def call(self, cmd, args=None, interactive=False, timeout=None):
+        """Send one command to the Unity editor and return its result.
+
+        Raises BridgeError with the Unity-side code on an error response,
+        "timeout" when Unity does not answer in time, and "internal" when the
+        editor cannot be reached at all.
+        """
+        timeout = self.timeout if timeout is None else timeout
+        self._refresh_endpoint()  # Unity may have moved to another port after a domain reload
+        # Unity enforces its own limit from _timeoutSec (10 s by default); send ours so long
+        # calls (playblast, big imports, scene saves) are not cut off on the Unity side.
+        args = dict(args or {}, _timeoutSec=timeout)
+        request = protocol.make_request(cmd, args, self.token, interactive)
+        sock = self._connect(timeout)
+        try:
+            with sock:
+                sock.settimeout(timeout)
+                sock.sendall(protocol.encode(request))
+                data = self._read_line(sock)
+        except socket.timeout:
+            raise BridgeError("timeout", "Unity did not answer '%s' within %.1f s." % (cmd, timeout))
+        except OSError as e:
+            raise BridgeError("internal", "Connection to the Unity editor failed (%s)." % e)
+
+        response = protocol.decode(data)
+        if response.get("id") != request["id"]:
+            raise BridgeError("internal", "Unity answered a different request.")
+        if response.get("ok"):
+            return response.get("result")
+        error = response.get("error") or {}
+        code = error.get("code") if error.get("code") in protocol.ERROR_CODES else "internal"
+        raise BridgeError(code, error.get("message", ""), error.get("details"))
+
+    def _connect(self, timeout):
+        """Connect, retrying while Unity reloads its scripts (its server is briefly down)."""
+        give_up = time.monotonic() + self.reload_wait
+        while True:
+            try:
+                # Windows retries refused loopback connects for ~2 s, so a connect-phase
+                # timeout means "nobody is listening", not "Unity is busy with the request".
+                return socket.create_connection((HOST, self.port), timeout=min(timeout, 2.0))
+            except OSError:
+                if time.monotonic() >= give_up:
+                    raise BridgeError(
+                        "unity_busy",
+                        "Unity is not answering (it may be compiling scripts or closed). Try again in a moment.",
+                    )
+                time.sleep(0.5)
+                self._refresh_endpoint()  # the reloaded editor may listen on a new port
+
+    @staticmethod
+    def _read_line(sock):
+        buf = b""
+        while not buf.endswith(b"\n"):
+            chunk = sock.recv(65536)
+            if not chunk:
+                break
+            buf += chunk
+        if not buf:
+            raise OSError("connection closed without a response")
+        return buf

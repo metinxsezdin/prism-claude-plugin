@@ -1,0 +1,15 @@
+{
+  "name": "prism-claude-plugin",
+  "owner": {
+    "name": "Metin Sezdin",
+    "url": "https://github.com/metinxsezdin"
+  },
+  "description": "Claude Code plugin for Prism Pipeline 2 projects.",
+  "plugins": [
+    {
+      "name": "prism",
+      "source": "./",
+      "description": "Prism Pipeline 2 tools and skill for Claude Code."
+    }
+  ]
+}

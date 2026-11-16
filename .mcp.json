@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "prism": {
+      "command": "${PRISM_ROOT:-C:/Program Files/Prism2}/Python313/python.exe",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/PrismMcp/server.py"],
+      "env": {
+        "PRISM_ROOT": "${PRISM_ROOT:-C:/Program Files/Prism2}"
+      }
+    }
+  }
+}

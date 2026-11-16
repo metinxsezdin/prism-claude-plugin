@@ -1,0 +1,12 @@
+{
+  "name": "prism",
+  "version": "1.0.0",
+  "description": "Work in a Prism Pipeline 2 project from Claude Code: look up assets, shots, versions and playblasts, set up assets and tasks, and manage masters and comments. No Prism window opens.",
+  "author": {
+    "name": "Metin Sezdin",
+    "url": "https://github.com/metinxsezdin"
+  },
+  "homepage": "https://github.com/metinxsezdin/prism-claude-plugin",
+  "repository": "https://github.com/metinxsezdin/prism-claude-plugin",
+  "keywords": ["prism", "prism-pipeline", "vfx", "animation", "pipeline", "maya", "blender", "unity"]
+}
